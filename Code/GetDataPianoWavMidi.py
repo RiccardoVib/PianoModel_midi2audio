@@ -6,7 +6,7 @@ import pretty_midi
 import matplotlib.pyplot as plt
 from Preprocess import my_scaler, get_batches
 from audio_format import pcm2float
-
+from easyDataset import plot_piano_roll
 def create_I_O_data(data_dir, seed=422):
     np.random.seed(seed)
     random.seed(seed)
