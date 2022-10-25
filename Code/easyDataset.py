@@ -5,9 +5,9 @@ import matplotlib.pyplot as plt
 import glob
 from scipy.io import wavfile
 from audio_format import pcm2float
-from mido import MidiFile
+#from mido import MidiFile
 import glob
-import pretty_midi
+#import pretty_midi
 
 import librosa.display
 
