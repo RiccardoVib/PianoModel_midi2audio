@@ -269,9 +269,9 @@ if __name__ == '__main__':
     #start = time.time()
     trainED(data_dir=data_dir,
               model_save_dir='../TrainedModels',#'/scratch/users/riccarsi/TrainedModels',
-              save_folder='ED_TubeTech_v2_batch8',
+              save_folder='ED_TubeTech_v2',
               ckpt_flag=True,
-              b_size=8,
+              b_size=128,
               learning_rate=0.001,
               encoder_units=[64],
               decoder_units=[64],
@@ -280,7 +280,7 @@ if __name__ == '__main__':
               loss_type='mse',
               activation='sigmoid',
               generate_wav=1,
-              w_length=16,
+              w_length=32,
               type_='float',
               inference=False)
     #end = time.time()
