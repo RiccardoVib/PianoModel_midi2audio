@@ -2,10 +2,18 @@ import os
 import pickle
 import numpy as np
 import tensorflow as tf
-from keras.layers import RepeatVector, LSTM, Dense, TimeDistributed, Lambda
-from tensorflow.keras import backend as K
-from keras import Input, Sequential
+from keras.layers import RepeatVector, LSTM, Dense, TimeDistributed, Lambda, Flatten
+from keras import backend as K
+from keras import Input, Sequential, Model
 from keras.utils import plot_model
+from GetDataPiano_it import get_batches
+
+# from tensorflow.compat.v1 import ConfigProto
+# from tensorflow.compat.v1 import InteractiveSession
+# config = ConfigProto()
+# config.gpu_options.allow_growth = True
+# session = InteractiveSession(config=config)
+
 
 def vae_loss2(input_x, decoder1, z_log_sigma, z_mean):
     """ Calculate loss = reconstruction loss + KL loss for each data in minibatch """
@@ -23,30 +31,24 @@ def sampling(args):
     return z_mean + z_log_sigma * epsilon
 
 
+seed = 422
 model_save_dir = '../TrainedModels'  # '/scratch/users/riccarsi/TrainedModels',
 save_folder = 'LSTM_VAE'
-b_size = 8
+b_size = 32
 learning_rate = 0.001
 w_length = 32
 
 data_dir = '../Files'
 # Dataset
-file_data = open(os.path.normpath('/'.join([data_dir, 'Dataset_prepared_32.pickle'])), 'rb')
-data = pickle.load(file_data)
-x = data['x']
-y = data['y']
-x_val = data['x_val']
-y_val = data['y_val']
-x_test = data['x_test']
-y_test = data['y_test']
-scaler = data['scaler']
+number_of_iterations = 3
+
+window = 32
 
 ckpt_flag = True
 
 #input shape = [samples, timestep, features]
-#sequence = [0.1, 0.1, 0.1]
-features = x.shape[2]
-timesteps = x.shape[1]
+features = 25#x.shape[2]
+timesteps = window#x.shape[1]
 
 #sequence_in = sequence.reshape(1, timesteps, features)
 #sequence_out = sequence.reshape(1, timesteps, features)
@@ -70,8 +72,10 @@ z = Lambda(sampling)([z_mean, z_log_sigma])
 decoder1 = RepeatVector(timesteps)(z)
 decoder1 = LSTM(inter_dim, activation='relu', return_sequences=True)(decoder1)
 decoder1 = TimeDistributed(Dense(features))(decoder1)
+decoder1 = Flatten()(decoder1)
+decoder1 = Dense(1)(decoder1)
 
-model = Sequential(input_x, decoder1)
+model = Model(input_x, decoder1)
 model.add_loss(vae_loss2(input_x, decoder1, z_log_sigma, z_mean)) #<===========
 model.compile(loss=None, optimizer='adam')
 model.summary()
@@ -105,33 +109,36 @@ if ckpt_flag:
     else:
         print("Initializing random weights.")
 
-results = model.fit(x, y, batch_size=b_size, epochs=300, verbose=0,
-          validation_data=(x_val, y_val), callbacks=callbacks)
+epochs = 300
+for ep in range(epochs):
+    for n_iteration in range(number_of_iterations):
+        print("Getting data")
+        x, y, x_val, y_val, scaler = get_batches(data_dir=data_dir, window=w_length, index=n_iteration,
+                                                    number_of_iterations=number_of_iterations, seed=seed)
 
-results = {
-    'Min_val_loss': np.min(results.history['val_loss']),
-    'Min_train_loss': np.min(results.history['loss']),
-    'b_size': b_size,
-    'learning_rate': learning_rate,
-    'w_length': w_length,
-    'lat_dim': latent_dim,
-    'inter_dim': inter_dim,
-    # 'Train_loss': results.history['loss'],
-    'Val_loss': results.history['val_loss']
-    }
-# print(results)
-if ckpt_flag:
-    with open(os.path.normpath(
-        '/'.join([model_save_dir, save_folder, 'results_it_.txt'])), 'w') as f:
-        for key, value in results.items():
-            print('\n', key, '  : ', value, file=f)
-            pickle.dump(results, open(os.path.normpath(
-                '/'.join([model_save_dir, save_folder, 'results_it_.pkl'])),
-                    'wb'))
+        results = model.fit(x, y, batch_size=b_size, epochs=1, verbose=2, validation_data=(x_val, y_val), callbacks=callbacks)
+
+        results = {
+            'Min_val_loss': np.min(results.history['val_loss']),
+            'Min_train_loss': np.min(results.history['loss']),
+            'b_size': b_size,
+            'learning_rate': learning_rate,
+            'w_length': w_length,
+            'lat_dim': latent_dim,
+            'inter_dim': inter_dim,
+            # 'Train_loss': results.history['loss'],
+            'Val_loss': results.history['val_loss']
+            }
+        # print(results)
+        if ckpt_flag:
+            with open(os.path.normpath('/'.join([model_save_dir, save_folder, 'results_it_'+ str(epochs) + '_' + str(n_iteration) + '.txt'])), 'w') as f:
+                for key, value in results.items():
+                    print('\n', key, '  : ', value, file=f)
+                    pickle.dump(results, open(os.path.normpath('/'.join([model_save_dir, save_folder, 'results_it_'+ str(epochs) + '_' + str(n_iteration) + '.pkl'])), 'wb'))
 
 
-plot_model(model, show_shapes=True, to_file='reconstruct_lstm_autoencoder.png')
+#plot_model(model, show_shapes=True, to_file='reconstruct_lstm_autoencoder.png')
 # demonstrate recreation
-yhat = model.predict(x_test, verbose=0)
-print(yhat[0, :, 0])
+#yhat = model.predict(x_test, verbose=0)
+#print(yhat[0, :, 0])
 

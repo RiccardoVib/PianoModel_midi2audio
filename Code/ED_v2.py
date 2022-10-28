@@ -7,8 +7,6 @@ import os
 import time
 import tensorflow as tf
 import matplotlib.pyplot as plt
-from TrainFunctionality import combinedLoss, STFT_loss_function
-from GetDataTubeTech import get_data, get_test_data, get_scaler
 from scipy.io import wavfile
 from scipy import signal
 from keras.layers import Input, Dense, LSTM
@@ -118,16 +116,8 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
     else:
         raise ValueError('Please pass opt_type as either Adam or SGD')
 
-    if loss_type == 'STFT_loss_function':
-        #model.add_loss(STFT_loss_function(decoder_outputs, decoder_outputs))
-        #model.compile(loss=None, optimizer=opt)
-        model.compile(loss=STFT_loss_function, metrics=STFT_loss_function, optimizer=opt)
-    elif loss_type == 'mse':
-        model.compile(loss='mse', metrics=['mse'], optimizer=opt)
-    elif loss_type == 'combined':
-        model.compile(loss=combinedLoss, metrics=combinedLoss, optimizer=opt)
-    else:
-        raise ValueError('Please pass loss_type as either MAE or MSE')
+    model.compile(loss='mse', metrics=['mse'], optimizer=opt)
+
 
     callbacks = []
     if ckpt_flag:
@@ -168,8 +158,15 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
         for n_iteration in range(number_of_iterations):
             print("Getting data")
 
-            x, y, x_val, y_val, scaler = get_data(data_dir=data_dir, window=w_length, index=n_iteration,
-                                                  number_of_iterations=number_of_iterations, type_=type_, seed=seed)
+            file_data = open(os.path.normpath('/'.join([data_dir, 'Dataset_prepared_32.pickle'])), 'rb')
+            data = pickle.load(file_data)
+            x = data['x']
+            y = data['y']
+            x_val = data['x_val']
+            y_val = data['y_val']
+            x_test = data['x_test']
+            y_test = data['y_test']
+            scaler = data['scaler']
 
             print("Starting Training")
             #results = model.fit([x[:, :-1, 0].reshape(x.shape[0], 15, 1), x[:, -1, :].reshape(x.shape[0], 1, 5)], y[:, -1], batch_size=b_size, epochs=epochs, verbose=0,
@@ -178,6 +175,7 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
             results = model.fit([x[:, :-1, :], x[:, -1, 0].reshape(x.shape[0], 1, 1)], y[:, -1], batch_size=b_size, epochs=epochs, verbose=0,
                                 validation_data=([x_val[:, :-1, :], x_val[:, -1, 0].reshape(x_val.shape[0], 1, 1)], y_val[:, -1]),
                                 callbacks=callbacks)
+
             print(n_iteration)
             print("Training done")
 
