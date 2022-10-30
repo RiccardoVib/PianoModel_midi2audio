@@ -2,7 +2,7 @@ import os
 import pickle
 import numpy as np
 import tensorflow as tf
-from keras.layers import RepeatVector, LSTM, Dense, TimeDistributed, Lambda, Flatten
+from keras.layers import RepeatVector, LSTM, Dense, Lambda
 from keras import backend as K
 from keras import Input, Sequential, Model
 from keras.utils import plot_model
@@ -24,16 +24,10 @@ def vae_loss2(input_x, decoder1, z_log_sigma, z_mean):
 
     return recon + kl
 
-def sampling(args):
-    z_mean, z_log_sigma = args
-    batch_size = tf.shape(z_mean)[0] # <================
-    epsilon = K.random_normal(shape=(batch_size, latent_dim), mean=0., stddev=1.)
-    return z_mean + z_log_sigma * epsilon
-
 
 seed = 422
 model_save_dir = '../TrainedModels'  # '/scratch/users/riccarsi/TrainedModels',
-save_folder = 'LSTM_VAE'
+save_folder = 'LSTM_2'
 b_size = 32
 learning_rate = 0.001
 w_length = 32
@@ -41,43 +35,30 @@ w_length = 32
 data_dir = '../Files'
 # Dataset
 
-
 window = 32
-
 ckpt_flag = True
 
 #input shape = [samples, timestep, features]
 features = 25#x.shape[2]
 timesteps = window#x.shape[1]
 
-#sequence_in = sequence.reshape(1, timesteps, features)
-#sequence_out = sequence.reshape(1, timesteps, features)
-
 #####model
 
-inter_dim = 32*4
-latent_dim = 32*4
+inter_dim = 32
+latent_dim = 32
 
 # timesteps, features
 input_x = Input(shape=(timesteps, features))
 #intermediate dimension
-h = LSTM(inter_dim, activation='relu')(input_x)
+h = LSTM(inter_dim, activation='relu', return_sequences=True)(input_x)
 
-#z_layer
-z_mean = Dense(latent_dim)(h)
-z_log_sigma = Dense(latent_dim)(h)
-z = Lambda(sampling)([z_mean, z_log_sigma])
-
-# Reconstruction decoder
-decoder1 = RepeatVector(timesteps)(z)
-decoder1 = LSTM(inter_dim, activation='relu', return_sequences=True)(decoder1)
-decoder1 = TimeDistributed(Dense(features))(decoder1)
-#decoder1 = Flatten()(decoder1)
-#decoder1 = Dense(1)(decoder1)
+#h = Dense(latent_dim)(h)
+#h = LSTM(latent_dim, activation='relu', return_sequences=True)(h)
+decoder1 = Dense(1)(h)
 
 model = Model(input_x, decoder1)
-model.add_loss(vae_loss2(input_x, decoder1, z_log_sigma, z_mean)) #<===========
-model.compile(loss=None, optimizer='adam')
+#model.add_loss(vae_loss2(input_x, decoder1, z_log_sigma, z_mean)) #<===========
+model.compile(loss=['mse'], metrics=['mse'], optimizer='adam')
 model.summary()
 
 callbacks = []
