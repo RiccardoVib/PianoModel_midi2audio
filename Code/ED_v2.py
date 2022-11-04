@@ -16,6 +16,8 @@ from keras.models import Model
 
 import pickle
 
+from GetDataPiano_it import get_batches
+
 
 #
 # from tensorflow.compat.v1 import ConfigProto
@@ -61,13 +63,11 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
     n_units_enc = n_units_enc[:-2]
     n_units_dec = n_units_dec[:-2]
 
-    #x, y, x_val, y_val, scaler = get_data(data_dir=data_dir, window=w_length, index=0, number_of_iterations=7, seed=seed)
 
     #T past values used to predict the next value
-    T = w_length#x.shape[1] #time window
-    D = 5#x.shape[2] #features
-
-    encoder_inputs = Input(shape=(T-1,D), name='enc_input')
+    features = 25  # x.shape[2]
+    timesteps = 32  # x.shape[1]
+    encoder_inputs = Input(shape=(timesteps-1, features), name='enc_input')
     
     encoder_dnn = Dense(dnn_units, name='Dense_enc')(encoder_inputs)
     
@@ -83,7 +83,7 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
 
     encoder_states = [state_h, state_c]
 
-    decoder_inputs = Input(shape=(1, 1), name='dec_input')
+    decoder_inputs = Input(shape=(1, features), name='dec_input')
     
     decoder_dnn = Dense(dnn_units, name='Dense_dec')(decoder_inputs)
         
@@ -99,23 +99,14 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
         outputs, _, _ = LSTM(first_unit_decoder, return_sequences=True, return_state=True, name='LSTM_De', dropout=drop)(
                                                                                         decoder_dnn,
                                                                                         initial_state=encoder_states)
-    #attention = Attention()([decoder_stack, encoder_stack])
-    #context = Attention()([attention, encoder_stack])
-    #decoder_combined_context = tf.keras.layers.Concatenate()([context, decoder_stack])
-        
+
     if drop != 0.:
         outputs = tf.keras.layers.Dropout(drop, name='DropLayer')(outputs)
     decoder_outputs = Dense(1, activation=activation, name='DenseLay')(outputs)
     model = Model([encoder_inputs, decoder_inputs], decoder_outputs)
     model.summary()
 
-    if opt_type == 'Adam':
-        opt = tf.keras.optimizers.Adam(learning_rate=learning_rate)
-    elif opt_type == 'SGD':
-        opt = tf.keras.optimizers.SGD(learning_rate=learning_rate)
-    else:
-        raise ValueError('Please pass opt_type as either Adam or SGD')
-
+    opt = tf.keras.optimizers.Adam(learning_rate=learning_rate)
     model.compile(loss='mse', metrics=['mse'], optimizer=opt)
 
 
@@ -158,22 +149,11 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
         for n_iteration in range(number_of_iterations):
             print("Getting data")
 
-            file_data = open(os.path.normpath('/'.join([data_dir, 'Dataset_prepared_32.pickle'])), 'rb')
-            data = pickle.load(file_data)
-            x = data['x']
-            y = data['y']
-            x_val = data['x_val']
-            y_val = data['y_val']
-            x_test = data['x_test']
-            y_test = data['y_test']
-            scaler = data['scaler']
+            x, y, x_val, y_val, scaler = get_batches(data_dir=data_dir, window=w_length, index=n_iteration,
+                                                     number_of_iterations=number_of_iterations, seed=seed)
 
-            print("Starting Training")
-            #results = model.fit([x[:, :-1, 0].reshape(x.shape[0], 15, 1), x[:, -1, :].reshape(x.shape[0], 1, 5)], y[:, -1], batch_size=b_size, epochs=epochs, verbose=0,
-            #                    validation_data=([x_val[:, :-1, 0].reshape(x_val.shape[0], 15, 1), x_val[:, -1, :].reshape(x_val.shape[0], 1, 5)], y_val[:, -1]),
-            #                    callbacks=callbacks)
-            results = model.fit([x[:, :-1, :], x[:, -1, 0].reshape(x.shape[0], 1, 1)], y[:, -1], batch_size=b_size, epochs=epochs, verbose=0,
-                                validation_data=([x_val[:, :-1, :], x_val[:, -1, 0].reshape(x_val.shape[0], 1, 1)], y_val[:, -1]),
+            results = model.fit([x[:, :-1, :], x[:, -1, :].reshape(x.shape[0], 1, x.shape[2])], y, batch_size=b_size, epochs=epochs, verbose=0,
+                                validation_data=([x_val[:, :-1, :], x_val[:, -1, :].reshape(x_val.shape[0], 1, x_val.shape[2])], y_val),
                                 callbacks=callbacks)
 
             print(n_iteration)

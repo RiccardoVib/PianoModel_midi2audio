@@ -2,32 +2,22 @@ import os
 import pickle
 import numpy as np
 import tensorflow as tf
-from keras.layers import RepeatVector, LSTM, Dense, Lambda
+from keras.layers import LSTM, Dense, Lambda
 from keras import backend as K
-from keras import Input, Sequential, Model
+from keras import Input, Model
 from keras.utils import plot_model
 from GetDataPiano_it import get_batches
-
-from tensorflow.compat.v1 import ConfigProto
-from tensorflow.compat.v1 import InteractiveSession
-config = ConfigProto()
-config.gpu_options.allow_growth = True
-session = InteractiveSession(config=config)
-
-
-def vae_loss2(input_x, decoder1, z_log_sigma, z_mean):
-    """ Calculate loss = reconstruction loss + KL loss for each data in minibatch """
-    # E[log P(X|z)]
-    recon = K.sum(K.binary_crossentropy(input_x, decoder1))
-    # D_KL(Q(z|X) || P(z|X)); calculate in closed form as both dist. are Gaussian
-    kl = 0.5 * K.sum(K.exp(z_log_sigma) + K.square(z_mean) - 1. - z_log_sigma)
-
-    return recon + kl
+#
+# from tensorflow.compat.v1 import ConfigProto
+# from tensorflow.compat.v1 import InteractiveSession
+# config = ConfigProto()
+# config.gpu_options.allow_growth = True
+# session = InteractiveSession(config=config)
 
 
 seed = 422
 model_save_dir = '../TrainedModels'  # '/scratch/users/riccarsi/TrainedModels',
-save_folder = 'LSTM_2'
+save_folder = 'M_2'
 b_size = 32
 learning_rate = 0.001
 w_length = 32
@@ -50,15 +40,15 @@ latent_dim = 32
 # timesteps, features
 input_x = Input(shape=(timesteps, features))
 #intermediate dimension
-h = LSTM(inter_dim, activation='relu', return_sequences=True)(input_x)
-
+#h = LSTM(inter_dim, activation='relu', return_sequences=True)(input_x)
+h = Dense(inter_dim, activation='relu')(input_x)
 #h = Dense(latent_dim)(h)
 #h = LSTM(latent_dim, activation='relu', return_sequences=True)(h)
 decoder1 = Dense(1)(h)
 
 model = Model(input_x, decoder1)
 #model.add_loss(vae_loss2(input_x, decoder1, z_log_sigma, z_mean)) #<===========
-model.compile(loss=['mse'], metrics=['mse'], optimizer='adam')
+model.compile(loss='mse', metrics=['mse'], optimizer='adam')
 model.summary()
 
 callbacks = []
@@ -91,7 +81,7 @@ if ckpt_flag:
         print("Initializing random weights.")
 
 epochs = 300
-number_of_iterations = 30
+number_of_iterations = 50
 for ep in range(epochs):
     for n_iteration in range(number_of_iterations):
         print("Getting data")
@@ -99,7 +89,6 @@ for ep in range(epochs):
                                                     number_of_iterations=number_of_iterations, seed=seed)
 
         results = model.fit(x, y, batch_size=b_size, epochs=1, verbose=0, validation_data=(x_val, y_val), callbacks=callbacks)
-        #results = model.train_on_batch(x[0].reshape(1, 32, 25), y[0].reshape(1, 32), reset_metrics=False)
 
     results_ = {
         'Min_val_loss': np.min(results.history['val_loss']),
