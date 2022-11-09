@@ -1,10 +1,5 @@
-#import tensorboard
-#load_ext tensorboard
-#rm -rf ./logs/
-import datetime
 import numpy as np
 import os
-import time
 import tensorflow as tf
 from TrainFunctionality import combinedLoss, STFT_loss_function
 from scipy.io import wavfile
@@ -108,7 +103,7 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
     model.summary()
 
     opt = tf.keras.optimizers.Adam(learning_rate=learning_rate)
-    model.compile(loss='mse', metrics=['mse'], optimizer=opt)
+    model.compile(loss=STFT_loss_function, optimizer=opt)
 
 
     callbacks = []
@@ -187,18 +182,18 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
                     open(os.path.normpath('/'.join([model_save_dir, save_folder, 'results_it_.pkl'])),
                                      'wb'))
 
-    x_test, y_test = get_test_data(data_dir=data_dir, window=w_length, type_=type_, seed=seed)
     if ckpt_flag:
         best = tf.train.latest_checkpoint(ckpt_dir)
         if best is not None:
             print("Restored weights from {}".format(ckpt_dir))
             model.load_weights(best)
+    x_test = x_val
+    y_test = y_val
     test_loss = model.evaluate([x_test[:, :-1, :], x_test[:, -1, :].reshape(x_test.shape[0], 1, D)], y_test, batch_size=b_size, verbose=0)
     
     print('Test Loss: ', test_loss)
-    scaler = get_scaler(data_dir=data_dir, type_=type_, seed=seed)
     if generate_wav is not None:
-        predictions = model.predict([x_test[:, :-1, :], x_test[:, -1, :].reshape(x_test.shape[0], 1, D)], batch_size=b_size)
+        predictions = model.predict([x_test[:, :-1, :], x_test[:, -1, :].reshape(x_test.shape[0], 1, features)], batch_size=b_size)
         
         predictions = (scaler[0].inverse_transform(predictions)).reshape(-1)
         y_test = (scaler[0].inverse_transform(y_test)).reshape(-1)
@@ -209,7 +204,6 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
         tar_name = '_tar.wav'
 
         pred_dir = os.path.normpath(os.path.join(model_save_dir, save_folder, 'WavPredictions', pred_name))
-        inp_dir = os.path.normpath(os.path.join(model_save_dir, save_folder, 'WavPredictions', inp_name))
         tar_dir = os.path.normpath(os.path.join(model_save_dir, save_folder, 'WavPredictions', tar_name))
 
         if not os.path.exists(os.path.dirname(pred_dir)):
@@ -233,7 +227,6 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
 if __name__ == '__main__':
     data_dir = '../Files' #/scratch/users/riccarsi/Files'
     seed = 422
-    #start = time.time()
     trainED(data_dir=data_dir,
               model_save_dir='../TrainedModels',#'/scratch/users/riccarsi/TrainedModels',
               save_folder='ED_piano',
@@ -250,5 +243,3 @@ if __name__ == '__main__':
               w_length=32,
               type_='float',
               inference=False)
-    #end = time.time()
-    #print(end - start)
