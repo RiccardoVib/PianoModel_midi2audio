@@ -1,12 +1,23 @@
+#import tensorboard
+#load_ext tensorboard
+#rm -rf ./logs/
+import datetime
 import numpy as np
 import os
+import time
 import tensorflow as tf
 from TrainFunctionality import combinedLoss, STFT_loss_function
 from scipy.io import wavfile
+from scipy import signal
 from keras.layers import Input, Dense, LSTM
 from keras.models import Model
+#from tensorflow.keras.optimizers import Adam, SGD
+#from tensorflow.keras.layers import Attention, Activation
+
 import pickle
 import matplotlib.pyplot as plt
+
+from GetDataPiano_it import get_batches
 
 
 #
@@ -53,21 +64,11 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
     n_units_enc = n_units_enc[:-2]
     n_units_dec = n_units_dec[:-2]
 
-    file_data = open(os.path.normpath('/'.join([data_dir, 'Dataset_prepared_32.pickle'])), 'rb')
-    data = pickle.load(file_data)
-    x = data['x']
-    y = data['y']
-    x_val = data['x_val']
-    y_val = data['y_val']
-    x_test = data['x_test']
-    y_test = data['y_test']
-    scaler = data['scaler']
-    del data
-    #T past values used to predict the next value
-    T = x.shape[1] #time window
-    D = x.shape[2] #features
 
-    encoder_inputs = Input(shape=(T-1, D), name='enc_input')
+    #T past values used to predict the next value
+    features = 25  # x.shape[2]
+    timesteps = 32  # x.shape[1]
+    encoder_inputs = Input(shape=(timesteps-1, features), name='enc_input')
     
     encoder_dnn = Dense(dnn_units, name='Dense_enc')(encoder_inputs)
     
@@ -83,7 +84,7 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
 
     encoder_states = [state_h, state_c]
 
-    decoder_inputs = Input(shape=(1, D), name='dec_input')
+    decoder_inputs = Input(shape=(1, features), name='dec_input')
     
     decoder_dnn = Dense(dnn_units, name='Dense_dec')(decoder_inputs)
         
@@ -99,31 +100,16 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
         outputs, _, _ = LSTM(first_unit_decoder, return_sequences=True, return_state=True, name='LSTM_De', dropout=drop)(
                                                                                         decoder_dnn,
                                                                                         initial_state=encoder_states)
-    #attention = Attention()([decoder_stack, encoder_stack])
-    #context = Attention()([attention, encoder_stack])
-    #decoder_combined_context = tf.keras.layers.Concatenate()([context, decoder_stack])
-        
+
     if drop != 0.:
         outputs = tf.keras.layers.Dropout(drop, name='DropLayer')(outputs)
     decoder_outputs = Dense(1, activation=activation, name='DenseLay')(outputs)
     model = Model([encoder_inputs, decoder_inputs], decoder_outputs)
     model.summary()
 
-    if opt_type == 'Adam':
-        opt = tf.keras.optimizers.Adam(learning_rate=learning_rate)
-    elif opt_type == 'SGD':
-        opt = tf.keras.optimizers.SGD(learning_rate=learning_rate)
-    else:
-        raise ValueError('Please pass opt_type as either Adam or SGD')
+    opt = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+    model.compile(loss='mse', metrics=['mse'], optimizer=opt)
 
-    if loss_type == 'STFT':
-        model.compile(loss=STFT_loss_function, optimizer=opt)
-    elif loss_type == 'mse':
-        model.compile(loss='mse', metrics=['mse'], optimizer=opt)
-    elif loss_type == 'combined':
-        model.compile(loss=combinedLoss, optimizer=opt)
-    else:
-        raise ValueError('Please pass loss_type as either MAE or MSE')
 
     callbacks = []
     if ckpt_flag:
@@ -159,13 +145,22 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
     callbacks += [early_stopping_callback]
     if not inference:
         # train
-        print("Starting Training")
-        results = model.fit([x[:, :-1, :], x[:, -1, :].reshape(x.shape[0], 1, D)], y, batch_size=b_size, epochs=epochs, verbose=0,
-                                validation_data=([x_val[:, :-1, :], x_val[:, -1, :].reshape(x_val.shape[0], 1, D)], y_val),
-                                callbacks=callbacks)
-        print("Training done")
+        number_of_iterations = 50
 
-        results = {
+        for n_iteration in range(number_of_iterations):
+            print("Getting data")
+
+            x, y, x_val, y_val, scaler = get_batches(data_dir=data_dir, window=w_length, index=n_iteration,
+                                                     number_of_iterations=number_of_iterations, seed=seed)
+
+            results = model.fit([x[:, :-1, :], x[:, -1, :].reshape(x.shape[0], 1, x.shape[2])], y, batch_size=b_size, epochs=epochs, verbose=0,
+                                validation_data=([x_val[:, :-1, :], x_val[:, -1, :].reshape(x_val.shape[0], 1, x_val.shape[2])], y_val),
+                                callbacks=callbacks)
+
+            print(n_iteration)
+            print("Training done")
+
+            results = {
                 'Min_val_loss': np.min(results.history['val_loss']),
                 'Min_train_loss': np.min(results.history['loss']),
                 'b_size': b_size,
@@ -192,6 +187,7 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
                     open(os.path.normpath('/'.join([model_save_dir, save_folder, 'results_it_.pkl'])),
                                      'wb'))
 
+    x_test, y_test = get_test_data(data_dir=data_dir, window=w_length, type_=type_, seed=seed)
     if ckpt_flag:
         best = tf.train.latest_checkpoint(ckpt_dir)
         if best is not None:
@@ -200,6 +196,7 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
     test_loss = model.evaluate([x_test[:, :-1, :], x_test[:, -1, :].reshape(x_test.shape[0], 1, D)], y_test, batch_size=b_size, verbose=0)
     
     print('Test Loss: ', test_loss)
+    scaler = get_scaler(data_dir=data_dir, type_=type_, seed=seed)
     if generate_wav is not None:
         predictions = model.predict([x_test[:, :-1, :], x_test[:, -1, :].reshape(x_test.shape[0], 1, D)], batch_size=b_size)
         
@@ -208,9 +205,11 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
 
         # Define directories
         pred_name = '_pred.wav'
+        inp_name = '_inp.wav'
         tar_name = '_tar.wav'
 
         pred_dir = os.path.normpath(os.path.join(model_save_dir, save_folder, 'WavPredictions', pred_name))
+        inp_dir = os.path.normpath(os.path.join(model_save_dir, save_folder, 'WavPredictions', inp_name))
         tar_dir = os.path.normpath(os.path.join(model_save_dir, save_folder, 'WavPredictions', tar_name))
 
         if not os.path.exists(os.path.dirname(pred_dir)):
@@ -220,6 +219,7 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
         wavfile.write(tar_dir, 44100, y_test)
 
     results = {'Test_Loss': test_loss}
+    print(results)
 
     if ckpt_flag:
         with open(os.path.normpath('/'.join([model_save_dir, save_folder, 'results.txt'])), 'w') as f:
