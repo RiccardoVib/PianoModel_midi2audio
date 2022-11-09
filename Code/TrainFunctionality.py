@@ -4,7 +4,29 @@ import matplotlib.pyplot as plt
 from statistics import mean
 from keras import backend as K
 
-#
+def STFT_loss_function(y_true, y_pred):
+
+    #y_true = tf.reshape((y_true), -1)
+    #y_pred = tf.reshape((y_pred), -1)
+
+    m = [64, 128, 256, 512, 1024, 2048]
+    loss = 0
+    for i in range(len(m)):
+
+        Y_true = tf.signal.stft(y_true, frame_length=m[i], frame_step=m[i]//2)
+        Y_pred = tf.signal.stft(y_pred, frame_length=m[i], frame_step=m[i]//2)
+        Y_true = tf.convert_to_tensor(Y_true[2])
+        Y_pred = tf.convert_to_tensor(Y_pred[2])
+        Y_true = K.pow(K.abs(Y_true), 2)
+        Y_pred = K.pow(K.abs(Y_pred), 2)
+
+        l_true = K.log(Y_true + 1)
+        l_pred = K.log(Y_pred + 1)
+
+        loss += tf.norm((l_true - l_pred), ord=1) + tf.norm((Y_true - Y_pred), ord=1)
+        #tf.reduce_mean(x)?
+    return loss
+
 def custom_loss_function(y_true, y_pred):
     mse = tf.keras.metrics.mean_squared_error(y_true, y_pred)
     #squared_difference = tf.square(tf.abs(y_true - y_pred))
