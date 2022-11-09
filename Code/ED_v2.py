@@ -98,7 +98,7 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
 
     if drop != 0.:
         outputs = tf.keras.layers.Dropout(drop, name='DropLayer')(outputs)
-    decoder_outputs = Dense(1, activation=activation, name='DenseLay')(outputs)
+    decoder_outputs = Dense(32, activation=activation, name='DenseLay')(outputs)
     model = Model([encoder_inputs, decoder_inputs], decoder_outputs)
     model.summary()
 
@@ -140,7 +140,7 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
     callbacks += [early_stopping_callback]
     if not inference:
         # train
-        number_of_iterations = 50
+        number_of_iterations = 10
 
         for n_iteration in range(number_of_iterations):
             print("Getting data")
@@ -187,9 +187,13 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
         if best is not None:
             print("Restored weights from {}".format(ckpt_dir))
             model.load_weights(best)
+
+    x, y, x_val, y_val, scaler = get_batches(data_dir=data_dir, window=w_length, index=0,
+                                             number_of_iterations=10, seed=seed)
+
     x_test = x_val
     y_test = y_val
-    test_loss = model.evaluate([x_test[:, :-1, :], x_test[:, -1, :].reshape(x_test.shape[0], 1, D)], y_test, batch_size=b_size, verbose=0)
+    test_loss = model.evaluate([x_test[:, :-1, :], x_test[:, -1, :].reshape(x_test.shape[0], 1, features)], y_test, batch_size=b_size, verbose=0)
     
     print('Test Loss: ', test_loss)
     if generate_wav is not None:
@@ -200,7 +204,6 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
 
         # Define directories
         pred_name = '_pred.wav'
-        inp_name = '_inp.wav'
         tar_name = '_tar.wav'
 
         pred_dir = os.path.normpath(os.path.join(model_save_dir, save_folder, 'WavPredictions', pred_name))
@@ -213,7 +216,6 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
         wavfile.write(tar_dir, 44100, y_test)
 
     results = {'Test_Loss': test_loss}
-    print(results)
 
     if ckpt_flag:
         with open(os.path.normpath('/'.join([model_save_dir, save_folder, 'results.txt'])), 'w') as f:
@@ -236,7 +238,7 @@ if __name__ == '__main__':
               encoder_units=[64],
               decoder_units=[64],
               dnn_units=64,
-              epochs=100,
+              epochs=1,
               loss_type='STFT',
               activation='sigmoid',
               generate_wav=1,
