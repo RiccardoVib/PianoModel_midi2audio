@@ -4,6 +4,8 @@ import os
 import numpy as np
 #import pretty_midi
 import matplotlib.pyplot as plt
+import pretty_midi
+
 from Preprocess import my_scaler, get_batches
 from audio_format import pcm2float
 #from easyDataset import plot_piano_roll
@@ -18,7 +20,7 @@ def create_I_O_data(data_dir, seed=422):
     # -----------------------------------------------------------------------------------------------------------------
     # Load data
     # -----------------------------------------------------------------------------------------------------------------
-    I_O = open(os.path.normpath('/'.join([data_dir, 'Dataset_midi_2_wav.pickle'])), 'rb')
+    I_O = open(os.path.normpath('/'.join([data_dir, 'Dataset_midi_2_wav22050.pickle'])), 'rb')
     I_O = pickle.load(I_O)
     wav = np.float32(np.array(I_O['wav']))
     midi = np.float32(np.array(I_O['midi']))
@@ -89,7 +91,7 @@ def get_data(data_dir, seed=422):
     # Load data
     # -----------------------------------------------------------------------------------------------------------------
     wav = open(os.path.normpath('/'.join([data_dir, 'NotesDatasetLong.pickle'])), 'rb')
-    midi = open(os.path.normpath('/'.join([data_dir, 'MidiDatasetLong.pickle'])), 'rb')
+    midi = open(os.path.normpath('/'.join([data_dir, 'MidiDatasetLong22050.pickle'])), 'rb')
 
     wav = pickle.load(wav)
     midi = pickle.load(midi)
@@ -157,17 +159,17 @@ if __name__ == '__main__':
 
     data_dir = '../Files'
 
-    # signals, piano_roll, scaler = get_data(data_dir=data_dir, seed=422)
-    # data = {'wav': signals, 'midi': piano_roll, 'scaler': scaler}
-    #
-    # file_data = open(os.path.normpath('/'.join([data_dir, 'Dataset_midi_2_wav.pickle'])), 'wb')
-    # pickle.dump(data, file_data)
-    # file_data.close()
+    signals, piano_roll, scaler = get_data(data_dir=data_dir, seed=422)
+    data = {'wav': signals, 'midi': piano_roll, 'scaler': scaler}
 
-    x, y, x_val, y_val, x_test, y_test, scaler = create_I_O_data(data_dir=data_dir, seed=422)
-
-    data = {'x': x, 'y': y, 'x_val': x_val, 'y_val': y_val, 'x_test': x_test, 'y_test': y_test,'scaler': scaler}
-
-    file_data = open(os.path.normpath('/'.join([data_dir, 'Dataset_prepared_32.pickle'])), 'wb')
+    file_data = open(os.path.normpath('/'.join([data_dir, 'Dataset_midi_2_wav22050.pickle'])), 'wb')
     pickle.dump(data, file_data)
     file_data.close()
+
+    # x, y, x_val, y_val, x_test, y_test, scaler = create_I_O_data(data_dir=data_dir, seed=422)
+    #
+    # data = {'x': x, 'y': y, 'x_val': x_val, 'y_val': y_val, 'x_test': x_test, 'y_test': y_test,'scaler': scaler}
+    #
+    # file_data = open(os.path.normpath('/'.join([data_dir, 'Dataset_prepared_32.pickle'])), 'wb')
+    # pickle.dump(data, file_data)
+    # file_data.close()

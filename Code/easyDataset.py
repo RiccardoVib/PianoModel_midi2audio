@@ -2,12 +2,12 @@ import pickle
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-import glob
+
+import scipy
 from scipy.io import wavfile
 from audio_format import pcm2float
-#from mido import MidiFile
 import glob
-#import pretty_midi
+import pretty_midi
 
 import librosa.display
 
@@ -21,17 +21,20 @@ def plot_piano_roll(pm, start_pitch, end_pitch, fs=100):
 
 data_dir = '../Files'
 
-wav = glob.glob(os.path.normpath('/'.join([data_dir, 'maestro/PianoDatasetsSingleNoteLong.wav'])))
+wav = glob.glob(os.path.normpath('/'.join([data_dir, 'PianoDatasetsSingleNoteLong.wav'])))
 for file in wav:
     fs, wav = wavfile.read(file)
 
 if wav.ndim != 1:
     wav = pcm2float(wav[:, 0] + wav[:, 1])
+
+wav = scipy.signal.resample_poly(wav, 1, 2)
+fs = fs/2
 #plt.plot(wav)
 #print(len(wav))
 #print(len(wav)/fs/60)
 
-mid = pretty_midi.PrettyMIDI(os.path.normpath('/'.join([data_dir, 'maestro/FileDisk.mid'])))
+mid = pretty_midi.PrettyMIDI(os.path.normpath('/'.join([data_dir, 'FileDisk.mid'])))
 
 # plt.figure(figsize=(12, 4))
 # plot_piano_roll(mid, 24, 84, fs=fs)
@@ -50,7 +53,7 @@ for inst in mid.instruments:
 for note in range(len(msg_collector[0].notes)):
     notes_collector.append(msg_collector[0].notes[note])
 
-file_data = open(os.path.normpath('/'.join([data_dir, 'MidiDatasetLong.pickle'])), 'wb')
+file_data = open(os.path.normpath('/'.join([data_dir, 'MidiDatasetLong22050.pickle'])), 'wb')
 pickle.dump(notes_collector, file_data)
 file_data.close()
 

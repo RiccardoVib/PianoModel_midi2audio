@@ -40,7 +40,7 @@ def get_batches(data_dir, window, number_of_iterations, index,seed=422):
     all_inp = []
     all_tar = []
     for i in range(N_train):
-        for t in range(wav.shape[2] - window):
+        for t in range(0, wav.shape[2] - window):
             inp_temp = np.array(midi[i, :, t:t + window])
             all_inp.append(inp_temp.T)
 
@@ -53,7 +53,7 @@ def get_batches(data_dir, window, number_of_iterations, index,seed=422):
     all_inp = []
     all_tar = []
     for i in range(N_train, N):
-        for t in range(wav.shape[2] - window):
+        for t in range(0, wav.shape[2] - window):
             inp_temp = np.array(midi[i, :, t:t + window])
             all_inp.append(inp_temp.T)
 

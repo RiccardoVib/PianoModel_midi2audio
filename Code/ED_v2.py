@@ -16,14 +16,19 @@ from GetDataPiano_it import get_batches
 
 
 #
-# from tensorflow.compat.v1 import ConfigProto
-# from tensorflow.compat.v1 import InteractiveSession
+from tensorflow.compat.v1 import ConfigProto
+from tensorflow.compat.v1 import InteractiveSession
 # config = ConfigProto()
 # config.gpu_options.allow_growth = True
 # session = InteractiveSession(config=config)
 #
 
 def trainED(data_dir, epochs, seed=422, **kwargs):
+
+    # config = ConfigProto()
+    # config.gpu_options.allow_growth = True
+    # session = InteractiveSession(config=config)
+
     ckpt_flag = kwargs.get('ckpt_flag', False)
     b_size = kwargs.get('b_size', 32)
     learning_rate = kwargs.get('learning_rate', 0.001)
@@ -62,7 +67,7 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
 
     #T past values used to predict the next value
     features = 25  # x.shape[2]
-    timesteps = 32  # x.shape[1]
+    timesteps = w_length  # x.shape[1]
     encoder_inputs = Input(shape=(timesteps-1, features), name='enc_input')
     
     encoder_dnn = Dense(dnn_units, name='Dense_enc')(encoder_inputs)
@@ -80,25 +85,23 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
     encoder_states = [state_h, state_c]
 
     decoder_inputs = Input(shape=(1, features), name='dec_input')
-    
-    decoder_dnn = Dense(dnn_units, name='Dense_dec')(decoder_inputs)
-        
+
     first_unit_decoder = decoder_units.pop(0)
     if len(decoder_units) > 0:
         last_unit_decoder = decoder_units.pop()
-        outputs = LSTM(first_unit_decoder, return_sequences=True, name='LSTM_De0', dropout=drop)(decoder_dnn,
+        outputs = LSTM(first_unit_decoder, return_sequences=True, name='LSTM_De0', dropout=drop)(decoder_inputs,
                                                                                    initial_state=encoder_states)
         for i, unit in enumerate(decoder_units):
             outputs = LSTM(unit, return_sequences=True, name='LSTM_De' + str(i + 1), dropout=drop)(outputs)
         outputs, _, _ = LSTM(last_unit_decoder, return_sequences=True, return_state=True, name='LSTM_DeFin', dropout=drop)(outputs)
     else:
         outputs, _, _ = LSTM(first_unit_decoder, return_sequences=True, return_state=True, name='LSTM_De', dropout=drop)(
-                                                                                        decoder_dnn,
+                                                                                        decoder_inputs,
                                                                                         initial_state=encoder_states)
 
     if drop != 0.:
         outputs = tf.keras.layers.Dropout(drop, name='DropLayer')(outputs)
-    decoder_outputs = Dense(32, activation=activation, name='DenseLay')(outputs)
+    decoder_outputs = Dense(timesteps, activation=activation, name='DenseLay')(outputs)
     model = Model([encoder_inputs, decoder_inputs], decoder_outputs)
     model.summary()
 
@@ -140,7 +143,7 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
     callbacks += [early_stopping_callback]
     if not inference:
         # train
-        number_of_iterations = 10
+        number_of_iterations = 1
 
         for n_iteration in range(number_of_iterations):
             print("Getting data")
@@ -212,8 +215,8 @@ def trainED(data_dir, epochs, seed=422, **kwargs):
         if not os.path.exists(os.path.dirname(pred_dir)):
             os.makedirs(os.path.dirname(pred_dir))
 
-        wavfile.write(pred_dir, 44100, predictions)
-        wavfile.write(tar_dir, 44100, y_test)
+        wavfile.write(pred_dir, 44100//2, predictions)
+        wavfile.write(tar_dir, 44100//2, y_test)
 
     results = {'Test_Loss': test_loss}
 
@@ -235,13 +238,13 @@ if __name__ == '__main__':
               ckpt_flag=True,
               b_size=128,
               learning_rate=0.001,
-              encoder_units=[64],
-              decoder_units=[64],
-              dnn_units=64,
-              epochs=1,
+              encoder_units=[32],
+              decoder_units=[32],
+              dnn_units=32,
+              epochs=100,
               loss_type='STFT',
               activation='sigmoid',
               generate_wav=1,
-              w_length=32,
+              w_length=8,
               type_='float',
-              inference=False)
+              inference=True)
